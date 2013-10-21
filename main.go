@@ -20,12 +20,14 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"go/build"
-	"log"
 	"os"
 	"path/filepath"
 )
+
+var stdFlag = flag.Bool("std", false, "report unused standard packages")
 
 func main() {
 	ctx := build.Default
@@ -44,25 +46,27 @@ func main() {
 			return nil
 		})
 		if err != nil {
-			log.Println(root, err)
+			fmt.Fprintf(os.Stderr, "error walking %q: %v\n", root, err)
 		}
 	}
 
 	used := make(map[string]bool)
 	var recordDeps func(*build.Package)
 	recordDeps = func(pkg *build.Package) {
+		if used[pkg.ImportPath] {
+			return
+		}
+		used[pkg.ImportPath] = true
 		imports := append([]string{}, pkg.Imports...)
 		imports = append(imports, pkg.TestImports...)
 		for _, p := range imports {
 			dep, ok := pkgs[p]
 			if !ok {
-				log.Println("imported but not found:", p)
+				if p != "C" {
+					fmt.Fprintf(os.Stderr, "package %q not found (imported by %q)\n", p, pkg.ImportPath)
+				}
 				continue
 			}
-			if used[dep.ImportPath] {
-				continue
-			}
-			used[dep.ImportPath] = true
 			recordDeps(dep)
 		}
 	}
@@ -73,7 +77,10 @@ func main() {
 	}
 
 	for path, pkg := range pkgs {
-		if !used[path] && pkg.Name != "main" {
+		if !used[path] {
+			if pkg.Goroot && !*stdFlag {
+				continue
+			}
 			fmt.Println(path)
 		}
 	}
