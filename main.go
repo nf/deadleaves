@@ -60,8 +60,8 @@ func main() {
 		imports := append([]string{}, pkg.Imports...)
 		imports = append(imports, pkg.TestImports...)
 		for _, p := range imports {
-			dep, ok := pkgs[p]
-			if !ok {
+			dep, err := ctx.Import(p, pkg.Dir, 0)
+			if err != nil {
 				if p != "C" {
 					fmt.Fprintf(os.Stderr, "package %q not found (imported by %q)\n", p, pkg.ImportPath)
 				}
